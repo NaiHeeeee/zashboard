@@ -26,7 +26,8 @@ jobs:
           if [ ! -f README.md ]; then
             echo "none" > README.md
           fi
-          LAST_VERSION=$(cat README.md)
+          # 提取 <!-- release_tag_start --> 和 <!-- release_tag_end --> 之间的版本号
+          LAST_VERSION=$(sed -n '/<!-- release_tag_start -->/,/<!-- release_tag_end -->/p' README.md | sed '1d;$d' | tr -d '\r')
           echo "LAST_VERSION=$LAST_VERSION" >> $GITHUB_ENV
           if [ "$LAST_VERSION" == "${{ env.RELEASE_TAG }}" ]; then
             echo "NO_UPDATE=true" >> $GITHUB_ENV
@@ -60,7 +61,8 @@ jobs:
       - name: Update version file
         if: env.NO_UPDATE != 'true'
         run: |
-          echo "${{ env.RELEASE_TAG }}" > README.md
+          # 使用 sed 替换 release tag 区域中的内容 (注意：兼容 Linux 平台)
+          sed -i '/<!-- release_tag_start -->/,/<!-- release_tag_end -->/c\<!-- release_tag_start -->\n'"${RELEASE_TAG}"'\n<!-- release_tag_end -->' README.md
           
       - name: Commit and push changes
         if: env.NO_UPDATE != 'true'
