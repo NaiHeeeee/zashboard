@@ -2,8 +2,8 @@ name: Sync Latest Release
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Run every hour
-  workflow_dispatch:      # Allow manual triggering
+    - cron: '0 * * * *'
+  workflow_dispatch:
 
 jobs:
   sync:
@@ -42,24 +42,23 @@ jobs:
       - name: Clean existing files
         if: env.NO_UPDATE != 'true'
         run: |
-          # Create a list of files to preserve
           echo ".github/" > preserve.txt
           echo "README.md" >> preserve.txt
-          
-          # Remove all files except those in preserve.txt
           find . -maxdepth 1 -type f ! -name "$(paste -sd '\|' preserve.txt)" -delete
           find . -maxdepth 1 -type d ! -name ".*" ! -name "temp_dist" -exec rm -rf {} +
           
       - name: Move files to root
         if: env.NO_UPDATE != 'true'
         run: |
-          # Move files from the inner dist directory to root
           mv temp_dist/dist/* .
           rm -rf temp_dist
           
       - name: Update version in README
         if: env.NO_UPDATE != 'true'
         run: |
+          if [ ! -f README.md ]; then
+            echo "# Project\n当前版本: <!-- RELEASE_TAG -->v0.0.0<!-- /RELEASE_TAG -->" > README.md
+          fi
           sed -i "s/<!-- RELEASE_TAG -->.*<!-- \/RELEASE_TAG -->/<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- \/RELEASE_TAG -->/" README.md
           
       - name: Commit and push changes
