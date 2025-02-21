@@ -23,8 +23,8 @@ jobs:
       - name: Check last processed version
         id: check_version
         run: |
-          if [ ! -f README.md ]; then
-            echo "# Project\n当前版本: <!-- RELEASE_TAG -->v0.0.0<!-- /RELEASE_TAG -->" > README.md
+          if [ ! -f README.md ] || ! grep -q "<!-- RELEASE_TAG -->" README.md; then
+            echo "当前版本: <!-- RELEASE_TAG -->v0.0.0<!-- /RELEASE_TAG -->" >> README.md
           fi
           LAST_VERSION=$(sed -n 's/.*<!-- RELEASE_TAG -->\(.*\)<!-- \/RELEASE_TAG -->/\1/p' README.md)
           echo "LAST_VERSION=$LAST_VERSION" >> $GITHUB_ENV
@@ -57,9 +57,12 @@ jobs:
         if: env.NO_UPDATE != 'true'
         run: |
           if [ ! -f README.md ]; then
-            echo "# Project\n当前版本: <!-- RELEASE_TAG -->v0.0.0<!-- /RELEASE_TAG -->" > README.md
+            echo "当前版本: <!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->" > README.md
+          elif ! grep -q "<!-- RELEASE_TAG -->" README.md; then
+            echo "当前版本: <!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->" >> README.md
+          else
+            sed -i "s/<!-- RELEASE_TAG -->.*<!-- \/RELEASE_TAG -->/<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- \/RELEASE_TAG -->/" README.md
           fi
-          sed -i "s/<!-- RELEASE_TAG -->.*<!-- \/RELEASE_TAG -->/<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- \/RELEASE_TAG -->/" README.md
           
       - name: Commit and push changes
         if: env.NO_UPDATE != 'true'
