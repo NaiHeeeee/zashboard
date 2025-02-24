@@ -21,7 +21,6 @@ jobs:
       - name: Get latest release info
         id: release
         run: |
-          set -e
           # 调用 GitHub API 获取最新 release 信息
           RELEASE_INFO=$(curl -s https://api.github.com/repos/Zephyruso/zashboard/releases/latest)
           # 从返回的 JSON 中解析 tag_name，存入环境变量 RELEASE_TAG
@@ -33,35 +32,36 @@ jobs:
       - name: Check 和 update release version in README
         id: update_readme
         run: |
-          set -e
           # 如果 README.md 不存在，则创建并写入初始版本 v0.0.0
           if [ ! -f README.md ]; then
             echo "当前版本: <!-- RELEASE_TAG -->v0.0.0<!-- /RELEASE_TAG -->" > README.md
+          fi
+
           # 如果文件存在但缺少版本标记，则追加初始版本
-          elif ! grep -q "<!-- RELEASE_TAG -->" README.md; then
+          if ! grep -q "<!-- RELEASE_TAG -->" README.md; then
             echo "当前版本: <!-- RELEASE_TAG -->v0.0.0<!-- /RELEASE_TAG -->" >> README.md
           fi
 
           # 使用 sed 提取 README.md 中已记录的版本号，存入变量 LAST_VERSION
-          LAST_VERSION=$(sed -n 's/.*<!-- RELEASE_TAG -->\(.*\)<!-- \/RELEASE_TAG -->/\1/p' README.md)
+          LAST_VERSION=$(sed -n 's/.*<!-- RELEASE_TAG -->\(.*\)<!-- \/RELEASE_TAG -->.*/\1/p' README.md)
           echo "LAST_VERSION=$LAST_VERSION" >> $GITHUB_ENV
 
           # 如果现有版本与最新版本不一致，则更新 README 中的版本标记
-          if [ "$LAST_VERSION" != "${{ env.RELEASE_TAG }}" ]; then
-            sed -i "s|<!-- RELEASE_TAG -->.*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|" README.md
+          if [ "$LAST_VERSION" != "$RELEASE_TAG" ]; then
+            sed -i "s|<!-- RELEASE_TAG -->.*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->$RELEASE_TAG<!-- /RELEASE_TAG -->|" README.md
             echo "UPDATED=true" >> $GITHUB_ENV
+          fi
 
       # 当版本号发生更新时，提交并推送更改
       - name: Commit 和 push changes
         if: env.UPDATED == 'true'
         run: |
-          set -e
           # 配置 Git 提交用户信息
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           # 添加 README.md 文件到暂存区
           git add README.md
           # 生成提交信息，并提交版本更新
-          git commit -m "Update version to ${{ env.RELEASE_TAG }}"
-          # 推送提交到远程仓库
-          git push
+          git commit -m "Update version to $RELEASE_TAG"
+          # 推送提交到远程仓库的当前分支
+          git push origin HEAD
