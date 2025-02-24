@@ -32,27 +32,6 @@ jobs:
             echo "NO_UPDATE=true" >> $GITHUB_ENV
           fi
           
-      - name: Download and extract release
-        if: env.NO_UPDATE != 'true'
-        run: |
-          curl -L "${{ env.DOWNLOAD_URL }}" -o dist.zip
-          mkdir -p temp_dist
-          unzip dist.zip -d temp_dist
-          
-      - name: Clean existing files
-        if: env.NO_UPDATE != 'true'
-        run: |
-          echo ".github/" > preserve.txt
-          echo "README.md" >> preserve.txt
-          find . -maxdepth 1 -type f ! -name "$(paste -sd '\|' preserve.txt)" -delete
-          find . -maxdepth 1 -type d ! -name ".*" ! -name "temp_dist" -exec rm -rf {} +
-          
-      - name: Move files to root
-        if: env.NO_UPDATE != 'true'
-        run: |
-          mv temp_dist/dist/* .
-          rm -rf temp_dist
-          
       - name: Update version in README
         if: env.NO_UPDATE != 'true'
         run: |
@@ -62,13 +41,12 @@ jobs:
             echo "当前版本: <!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->" >> README.md
           else
             sed -i "s/<!-- RELEASE_TAG -->.*<!-- \/RELEASE_TAG -->/<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- \/RELEASE_TAG -->/" README.md
-          fi
           
       - name: Commit and push changes
         if: env.NO_UPDATE != 'true'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add -A
-          git commit -m "Sync latest release ${{ env.RELEASE_TAG }}"
+          git add README.md
+          git commit -m "Update version to ${{ env.RELEASE_TAG }}"
           git push
