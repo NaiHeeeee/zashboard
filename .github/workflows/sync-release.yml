@@ -2,52 +2,66 @@ name: Sync Latest Release
 
 on:
   schedule:
-    - cron: '0 * * * *'
-  workflow_dispatch:
+    - cron: '0 * * * *'  # 定时触发，每小时运行一次
+  workflow_dispatch:      # 手动触发
 
 jobs:
   sync:
     runs-on: ubuntu-latest
-    
+
     steps:
+      # 检出仓库代码
       - name: Checkout repository
         uses: actions/checkout@v3
-        
+
+      # 获取最新发布信息
       - name: Get latest release info
         id: release
         run: |
+          set -e
+          # 调用 GitHub API 获取最新 release 信息
           RELEASE_INFO=$(curl -s https://api.github.com/repos/Zephyruso/zashboard/releases/latest)
-          echo "RELEASE_TAG=$(echo $RELEASE_INFO | jq -r .tag_name)" >> $GITHUB_ENV
-          echo "DOWNLOAD_URL=$(echo $RELEASE_INFO | jq -r '.assets[] | select(.name=="dist.zip") | .browser_download_url')" >> $GITHUB_ENV
-          
-      - name: Check last processed version
-        id: check_version
+          # 从返回的 JSON 中解析 tag_name，存入环境变量 RELEASE_TAG
+          echo "RELEASE_TAG=$(echo "$RELEASE_INFO" | jq -r .tag_name)" >> $GITHUB_ENV
+          # 获取 dist.zip 资源的下载链接，存入环境变量 DOWNLOAD_URL
+          echo "DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name=="dist.zip") | .browser_download_url')" >> $GITHUB_ENV
+
+      # 检查并更新 README 中的版本标记
+      - name: Check and update release version in README
+        id: update_readme
         run: |
-          if [ ! -f README.md ] || ! grep -q "<!-- RELEASE_TAG -->" README.md; then
+          set -e
+          # 如果 README.md 不存在，则创建并写入初始版本 v0.0.0
+          if [ ! -f README.md ]; then
+            echo "当前版本: <!-- RELEASE_TAG -->v0.0.0<!-- /RELEASE_TAG -->" > README.md
+          # 如果文件存在但缺少版本标记，则追加初始版本
+          elif ! grep -q "<!-- RELEASE_TAG -->" README.md; then
             echo "当前版本: <!-- RELEASE_TAG -->v0.0.0<!-- /RELEASE_TAG -->" >> README.md
           fi
+
+          # 使用 sed 提取 README.md 中已记录的版本号，存入变量 LAST_VERSION
           LAST_VERSION=$(sed -n 's/.*<!-- RELEASE_TAG -->\(.*\)<!-- \/RELEASE_TAG -->/\1/p' README.md)
           echo "LAST_VERSION=$LAST_VERSION" >> $GITHUB_ENV
-          if [ "$LAST_VERSION" == "${{ env.RELEASE_TAG }}" ]; then
-            echo "NO_UPDATE=true" >> $GITHUB_ENV
-          fi
-          
-      - name: Update version in README
-        if: env.NO_UPDATE != 'true'
-        run: |
-          if [ ! -f README.md ]; then
-            echo "当前版本: <!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->" > README.md
-          elif ! grep -q "<!-- RELEASE_TAG -->" README.md; then
-            echo "当前版本: <!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->" >> README.md
-          else
+
+          # 如果现有版本与最新版本不一致，则更新 README 中的版本标记
+          if [ "$LAST_VERSION" != "${{ env.RELEASE_TAG }}" ]; then
             sed -i "s|<!-- RELEASE_TAG -->.*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|" README.md
+            echo "UPDATED=true" >> $GITHUB_ENV
+          else
+            echo "UPDATED=false" >> $GITHUB_ENV
           fi
-          
+
+      # 当版本号发生更新时，提交并推送更改
       - name: Commit and push changes
-        if: env.NO_UPDATE != 'true'
+        if: env.UPDATED == 'true'
         run: |
+          set -e
+          # 配置 Git 提交用户信息
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
+          # 添加 README.md 文件到暂存区
           git add README.md
+          # 生成提交信息，并提交版本更新
           git commit -m "Update version to ${{ env.RELEASE_TAG }}"
+          # 推送提交到远程仓库
           git push
