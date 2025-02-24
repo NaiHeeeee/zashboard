@@ -28,26 +28,28 @@ jobs:
           fi
           LAST_VERSION=$(sed -n 's/.*<!-- RELEASE_TAG -->\(.*\)<!-- \/RELEASE_TAG -->/\1/p' README.md)
           echo "LAST_VERSION=$LAST_VERSION" >> $GITHUB_ENV
-          if [ "$LAST_VERSION" == "${{ env.RELEASE_TAG }}" ]; then
-            echo "NO_UPDATE=true" >> $GITHUB_ENV
-          fi
-          
+          if [ "$LAST_VERSION" == "$RELEASE_TAG" ]; then
+            echo "no_update=true" >> $GITHUB_OUTPUT
+          else
+            echo "no_update=false" >> $GITHUB_OUTPUT
       - name: Update version in README
-        if: env.NO_UPDATE != 'true'
+        if: ${{ steps.check_version.outputs.no_update != 'true' }}
         run: |
           if [ ! -f README.md ]; then
-            echo "当前版本: <!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->" > README.md
+            echo "当前版本: <!-- RELEASE_TAG -->$RELEASE_TAG<!-- /RELEASE_TAG -->" > README.md
           elif ! grep -q "<!-- RELEASE_TAG -->" README.md; then
-            echo "当前版本: <!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->" >> README.md
+            echo "当前版本: <!-- RELEASE_TAG -->$RELEASE_TAG<!-- /RELEASE_TAG -->" >> README.md
           else
-            sed -i "s|<!-- RELEASE_TAG -->.*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|" README.md
+            sed -i "s|<!-- RELEASE_TAG -->.*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->$RELEASE_TAG<!-- /RELEASE_TAG -->|" README.md
           fi
-          
+            sed -i "s|<!-- RELEASE_TAG -->.*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->$RELEASE_TAG<!-- /RELEASE_TAG -->|" README.md
       - name: Commit and push changes
-        if: env.NO_UPDATE != 'true'
+        if: ${{ steps.check_version.outputs.no_update != 'true' }}
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add README.md
-          git commit -m "Update version to ${{ env.RELEASE_TAG }}"
+          git commit -m "Update version to $RELEASE_TAG"
+          git pushREADME.md
+          git commit -m "Update version to $RELEASE_TAG"
           git push
