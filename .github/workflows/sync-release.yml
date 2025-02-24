@@ -8,6 +8,9 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ''
+      UPDATED: 'false'
 
     steps:
       # 检出仓库代码
