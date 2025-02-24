@@ -41,6 +41,7 @@ jobs:
             echo "当前版本: <!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->" >> README.md
           else
             sed -i "s|<!-- RELEASE_TAG -->.*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|" README.md
+          fi
           
       - name: Commit and push changes
         if: env.NO_UPDATE != 'true'
