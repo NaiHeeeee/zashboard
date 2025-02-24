@@ -30,7 +30,7 @@ jobs:
           echo "DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name=="dist.zip") | .browser_download_url')" >> $GITHUB_ENV
 
       # 检查并更新 README 中的版本标记
-      - name: Check and update release version in README
+      - name: Check 和 update release version in README
         id: update_readme
         run: |
           set -e
@@ -50,12 +50,9 @@ jobs:
           if [ "$LAST_VERSION" != "${{ env.RELEASE_TAG }}" ]; then
             sed -i "s|<!-- RELEASE_TAG -->.*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|" README.md
             echo "UPDATED=true" >> $GITHUB_ENV
-          else
-            echo "UPDATED=false" >> $GITHUB_ENV
-          fi
 
       # 当版本号发生更新时，提交并推送更改
-      - name: Commit and push changes
+      - name: Commit 和 push changes
         if: env.UPDATED == 'true'
         run: |
           set -e
