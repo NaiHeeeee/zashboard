@@ -1,110 +1,104 @@
-name: Sync Latest Release   # 工作流名称：同步最新发布
+name: Sync Latest Release   # 同步最新发布
 
 on:
   schedule:
-    - cron: '0 * * * *'     # 定时触发：每小时整点运行
-  workflow_dispatch:        # 手动触发：允许在 GitHub 界面手动运行
-
-permissions:
-  contents: write           # 权限设置：授予对仓库内容的写权限，用于推送更改
+    - cron: '0 * * * *'  # 每小时运行一次，cron 表达式表示每小时的第0分钟触发
+  workflow_dispatch:      # 允许手动触发工作流，方便测试或紧急同步
 
 jobs:
-  sync:                     # 任务名称：同步
-    runs-on: ubuntu-latest  # 运行环境：使用最新的 Ubuntu 系统
-    env:                    # 环境变量定义
-      NO_UPDATE: false      # 是否无需更新，默认 false
-      RELEASE_TAG: ''       # 最新版本标签，初始为空
-      DOWNLOAD_URL: ''      # 下载地址，初始为空
+  sync:
+    runs-on: ubuntu-latest    # 在最新的 Ubuntu 虚拟机环境中运行
+    env:                      # 定义环境变量
+      NO_UPDATE: false        # 是否需要更新的标志，默认为 false（需要更新）
+      RELEASE_TAG: ''         # 最新版本的标签，初始为空
+      DOWNLOAD_URL: ''        # 最新版本的下载链接，初始为空
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4  # 步骤：检出代码库，使用最新 v4 版本
+        uses: actions/checkout@v3        # 检出当前仓库的代码到工作目录
         
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-        # 步骤：安装 jq 工具，用于解析 JSON，确保环境一致性
-        
-      - name: Fetch latest release info
+      - name: Get latest release info
         id: release
         run: |
-          # 步骤：获取最新发布信息
-          # 使用 GitHub API 获取 Zephyruso/zashboard 的最新 release 数据
-          RELEASE_INFO=$(curl -s -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/Zephyruso/zashboard/releases/latest)
-          # 提取版本标签并存入环境变量
-          echo "RELEASE_TAG=$(echo "$RELEASE_INFO" | jq -r .tag_name)" >> "$GITHUB_ENV"
-          # 提取 dist.zip 的下载地址并存入环境变量
-          echo "DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name=="dist.zip") | .browser_download_url')" >> "$GITHUB_ENV"
-          # 检查版本标签是否成功获取，若为空则报错退出
-          [ -n "${{ env.RELEASE_TAG }}" ] || { echo "错误：无法获取版本标签"; exit 1; }
+          # 获取最新发布信息
+          # 使用 curl 通过 GitHub API 获取 Zephyruso/zashboard 仓库的最新 release 数据
+          RELEASE_INFO=$(curl -s https://api.github.com/repos/Zephyruso/zashboard/releases/latest)
+          # 提取版本标签并写入环境变量 RELEASE_TAG
+          echo "RELEASE_TAG=$(echo $RELEASE_INFO | jq -r .tag_name)" >> $GITHUB_ENV
+          # 提取 dist.zip 文件的下载地址并写入环境变量 DOWNLOAD_URL
+          echo "DOWNLOAD_URL=$(echo $RELEASE_INFO | jq -r '.assets[] | select(.name=="dist.zip") | .browser_download_url')" >> $GITHUB_ENV
           
-      - name: Check for updates
+      - name: Check last processed version
         id: check_version
         run: |
-          # 步骤：检查是否有更新
-          # 如果 README.md 不存在或没有版本标记，初始化一个默认版本
+          # 检查上一次处理的版本
+          # 如果 README.md 不存在或没有版本标记，则初始化一个默认版本 v0.0.0
           if [ ! -f README.md ] || ! grep -q "<!-- RELEASE_TAG -->" README.md; then
-            echo "当前版本: <!-- RELEASE_TAG -->v0.0.0<!-- /RELEASE_TAG -->" > README.md
+            echo "当前版本: <!-- RELEASE_TAG -->v0.0.0<!-- /RELEASE_TAG -->" >> README.md
           fi
-          # 提取 README 中的上一个版本号
+          # 从 README.md 中提取上一次记录的版本号
           LAST_VERSION=$(sed -n 's/.*<!-- RELEASE_TAG -->\(.*\)<!-- \/RELEASE_TAG -->/\1/p' README.md)
-          # 输出对比信息，便于调试
-          echo "上一个版本: $LAST_VERSION"
-          echo "最新版本: ${{ env.RELEASE_TAG }}"
-          # 如果版本未变，设置 NO_UPDATE 为 true
-          [ "$LAST_VERSION" != "${{ env.RELEASE_TAG }}" ] || echo "NO_UPDATE=true" >> "$GITHUB_ENV"
+          echo "LAST_VERSION=$LAST_VERSION" >> $GITHUB_ENV
+          # 如果上一次版本与当前版本相同，则无需更新，设置 NO_UPDATE 为 true
+          if [ "$LAST_VERSION" == "${{ env.RELEASE_TAG }}" ]; then
+            echo "NO_UPDATE=true" >> $GITHUB_ENV
+          fi
           
-      - name: Backup README
-        if: env.NO_UPDATE != 'true'  # 条件：仅在需要更新时执行
-        uses: actions/upload-artifact@v4
-        with:
-          name: readme-backup        # artifact 名称
-          path: README.md            # 备份文件路径
-          retention-days: 1          # 保留时间：1天，节省存储空间
-        # 步骤：备份 README 文件，避免后续清理时丢失
-        
-      - name: Sync new release
-        if: env.NO_UPDATE != 'true'  # 条件：仅在需要更新时执行
+      - name: Download and extract release
+        if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
         run: |
-          # 步骤：同步新版本
-          # 下载最新的 dist.zip 文件，若失败则报错
-          curl -L -o dist.zip "${{ env.DOWNLOAD_URL }}" || { echo "下载失败"; exit 1; }
-          # 解压到临时目录 temp_dist，-q 参数减少输出，若失败则报错
-          unzip -q dist.zip -d temp_dist || { echo "解压失败"; exit 1; }
+          # 下载并解压最新发布包
+          # 使用 curl 下载 dist.zip 文件
+          curl -L "${{ env.DOWNLOAD_URL }}" -o dist.zip
+          # 创建临时目录 temp_dist 用于解压
+          mkdir -p temp_dist
+          # 将 dist.zip 解压到 temp_dist 目录
+          unzip dist.zip -d temp_dist
           
-          # 清理现有文件，保留 README.md 和 .github 目录
-          find . -maxdepth 1 -type f -not -name "README.md" -not -name ".git*" -delete
+      - name: Clean existing files
+        if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
+        run: |
+          # 创建需要保留的文件和目录列表
+          echo ".github/" > preserve.txt    # 保留 .github 目录（工作流文件所在目录）
+          echo "README.md" >> preserve.txt  # 保留 README.md 文件
+          
+          # 删除除保留文件以外的文件和目录
+          # 删除根目录下除 README.md、.github、preserve.txt 以外的所有文件
+          find . -maxdepth 1 -type f -not -name "README.md" -not -name ".github" -not -name "preserve.txt" -delete
+          # 删除根目录下除隐藏目录、temp_dist、.github 以外的所有目录
           find . -maxdepth 1 -type d -not -name ".*" -not -name "temp_dist" -not -name ".github" -exec rm -rf {} +
           
-          # 将新文件移动到根目录并清理临时文件
-          mv temp_dist/dist/* . && rm -rf temp_dist dist.zip
-
-      - name: Restore README
-        if: env.NO_UPDATE != 'true'  # 条件：仅在需要更新时执行
-        uses: actions/download-artifact@v4
-        with:
-          name: readme-backup        # 下载之前备份的 README
-        # 步骤：恢复原始 README 文件到工作目录
-        
-      - name: Update README version
-        if: env.NO_UPDATE != 'true'  # 条件：仅在需要更新时执行
-        run: |
-          # 步骤：更新 README 中的版本信息
-          # 替换版本标签
-          sed -i "s|<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|" README.md
-          # 替换版本链接
-          sed -i "s|\[<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->\](https://github.com/Zephyruso/zashboard/releases)|\[<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->](https://github.com/Zephyruso/zashboard/releases)|" README.md
+          # 清理临时文件 preserve.txt
+          rm -f preserve.txt
           
-      - name: Commit changes
-        if: env.NO_UPDATE != 'true'  # 条件：仅在需要更新时执行
+      - name: Move files to root
+        if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
         run: |
-          # 步骤：提交更改
-          # 配置 Git 用户信息
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config user.name "github-actions[bot]"
-          # 添加所有更改
-          git add .
-          # 提交更改，若无更改则输出提示
-          git commit -m "同步版本 ${{ env.RELEASE_TAG }}" || echo "无更改需要提交"
-          # 推送到远程仓库
+          # 将解压目录中的文件移动到仓库根目录
+          # 将 temp_dist/dist 下的所有文件移动到根目录
+          mv temp_dist/dist/* .
+          # 删除临时目录 temp_dist
+          rm -rf temp_dist
+          
+      - name: Update version in README
+        if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
+        run: |
+          # 更新 README.md 中的版本信息
+          # 替换旧的版本号为新的 RELEASE_TAG
+          sed -i "s|<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|" README.md
+          # 更新 README.md 中的版本链接（如果存在）
+          sed -i "s|\[<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->\](https://github.com/Zephyruso/zashboard/releases)|[<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->](https://github.com/Zephyruso/zashboard/releases)|" README.md
+          
+      - name: Commit and push changes
+        if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
+        run: |
+          # 配置 Git 并提交更新
+          # 设置 Git 用户信息，使用 GitHub Actions 的默认 bot 身份
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          # 添加所有更改到暂存区
+          git add -A
+          # 提交更改，提交信息包含最新版本号
+          git commit -m "Sync latest release ${{ env.RELEASE_TAG }}"
+          # 推送更改到远程仓库
           git push
