@@ -78,7 +78,7 @@ jobs:
           echo "README.md" >> preserve.txt
           
           # 删除除保留文件以外的文件和目录
-          find . -maxdepth 1 -type f -not -name "README.md" -not -name ".github" -not -name "preserve.txt" -not -name "original_dist.zip" -not -name "processed_dist.zip" -delete
+          find . -maxdepth 1 -type f -not -name "README.md" -not -name ".github" -not -name "preserve.txt" -not -name "original_dist.zip" -not -name "zashboard.zip" -delete
           find . -maxdepth 1 -type d -not -name ".*" -not -name "temp_extract" -not -name "processed_dist" -not -name ".github" -exec rm -rf {} +
           
       - name: Move files to root
