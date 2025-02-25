@@ -54,8 +54,8 @@ jobs:
           echo "README.md" >> preserve.txt
           
           # 删除除保留列表以外的文件
-          find . -maxdepth 1 -type f ! -name "$(paste -sd '|' preserve.txt)" -delete
-          find . -maxdepth 1 -type d ! -name ".*" ! -name "temp_dist" -exec rm -rf {} +
+          find . -maxdepth 1 -type f | grep -v -f preserve.txt | xargs rm -f
+          find . -maxdepth 1 -type d ! -name ".*" ! -name "temp_dist" | grep -v -f preserve.txt | xargs rm -rf
           
       - name: Move files to root
         if: env.NO_UPDATE != 'true'
