@@ -35,10 +35,13 @@ jobs:
           if [ ! -f README.md ] || ! grep -q "<!-- RELEASE_TAG -->" README.md; then
             echo "当前版本: <!-- RELEASE_TAG -->v0.0.0<!-- /RELEASE_TAG -->" >> README.md
           fi
-          LAST_VERSION=$(sed -n 's/.*<!-- RELEASE_TAG -->\(.*\)<!-- \/RELEASE_TAG -->/\1/p' README.md)
+          
+          # 提取纯版本号（移除URL和其他字符）
+          LAST_VERSION=$(grep -o '<!-- RELEASE_TAG -->[^<]*' README.md | sed 's/<!-- RELEASE_TAG -->//g')
+          echo "提取到的版本号: $LAST_VERSION"
           echo "LAST_VERSION=$LAST_VERSION" >> $GITHUB_ENV
           
-          # 设置更新标志
+          # 设置更新标志（使用纯版本号比较）
           if [ "$LAST_VERSION" != "${{ env.RELEASE_TAG }}" ]; then
             echo "NEED_UPDATE=true" >> $GITHUB_ENV
             echo "发现新版本 ${{ env.RELEASE_TAG }}，需要更新（当前版本: $LAST_VERSION）"
