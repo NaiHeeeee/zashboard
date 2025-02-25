@@ -102,17 +102,17 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: "${{ env.RELEASE_TAG }}-nocname"
-          name: "${{ env.RELEASE_TAG }} (无CNAME版本)"
+          name: "${{ env.RELEASE_TAG }}"
           body: |
-            此版本基于原始 ${{ env.RELEASE_TAG }} 发布，已移除CNAME文件以便在GitHub Pages上部署。
+            此版本基于原始 ${{ env.RELEASE_TAG }} 发布，已移除CNAME文件。
             
-            原始发布请参考：https://github.com/Zephyruso/zashboard/releases/tag/${{ env.RELEASE_TAG }}
+            原始发布：https://github.com/Zephyruso/zashboard/releases/tag/${{ env.RELEASE_TAG }}
           files: |
-            processed_dist.zip
+            zashboard.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Prepare and push to main and gh-pages
+      - name: Prepare and push to main
         if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
         run: |
           # 配置 Git
@@ -127,9 +127,27 @@ jobs:
           git commit -m "Sync latest release ${{ env.RELEASE_TAG }}" || echo "No changes to commit"
           git push origin main
           
-          # 切换到 gh-pages 分支（如果不存在则创建）
-          git checkout gh-pages || git checkout -b gh-pages
+      - name: Prepare and push to gh-pages
+        if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
+        run: |
+          # 检出 gh-pages 分支（如果不存在则创建）
+          git checkout gh-pages 2>/dev/null || git checkout -b gh-pages
+          
+          # 从 main 分支拉取更新
+          git pull origin main --rebase
+          
+          # CNAME 处理 - 为 gh-pages 分支创建空 CNAME 文件而非删除
+          if [ -f CNAME ]; then
+            echo "清空 CNAME 文件内容而不删除它"
+            echo "" > CNAME
+          else
+            echo "创建空 CNAME 文件"
+            touch CNAME
+          fi
+          
+          # 添加更改
+          git add -A
           
           # 提交并推送至 gh-pages 分支
-          git commit -m "Sync latest release ${{ env.RELEASE_TAG }}" || echo "No changes to commit"
+          git commit -m "Sync latest release ${{ env.RELEASE_TAG }} and clean CNAME" || echo "No changes to commit"
           git push origin gh-pages --force
