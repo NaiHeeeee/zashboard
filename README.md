@@ -2,3 +2,4 @@
 
 当前版本: [<!-- RELEASE_TAG -->v1.68.1<!-- /RELEASE_TAG -->](https://github.com/Zephyruso/zashboard/releases)
 
+[![Sync Latest Release](https://github.com/NaiHeeeee/zashboard/actions/workflows/sync-release.yml/badge.svg)](https://github.com/NaiHeeeee/zashboard/actions/workflows/sync-release.yml)
