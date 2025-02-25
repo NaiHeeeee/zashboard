@@ -2,7 +2,7 @@ name: Sync Latest Release   # 同步最新发布
 
 on:
   schedule:
-    - cron: '0 * * * *'  # 每小时运行一次
+    - cron: '0 * * * *'   # 每小时运行一次
   workflow_dispatch:      # 允许手动触发
   push:                   # 在推送时触发
     branches:
@@ -12,7 +12,7 @@ jobs:
   sync:
     runs-on: ubuntu-latest    # 在最新的 Ubuntu 虚拟机环境中运行
     env:                      # 定义环境变量
-      UPDATE: false        # 是否需要更新的标志
+      NEED_UPDATE: true       # 默认需要更新
       RELEASE_TAG: ''         # 最新版本的标签
       DOWNLOAD_URL: ''        # 最新版本的下载链接
     
@@ -37,12 +37,17 @@ jobs:
           fi
           LAST_VERSION=$(sed -n 's/.*<!-- RELEASE_TAG -->\(.*\)<!-- \/RELEASE_TAG -->/\1/p' README.md)
           echo "LAST_VERSION=$LAST_VERSION" >> $GITHUB_ENV
+          
+          # 只有当最新版本与当前版本不同时，才需要更新
           if [ "$LAST_VERSION" == "${{ env.RELEASE_TAG }}" ]; then
-            echo "UPDATE=true" >> $GITHUB_ENV
+            echo "当前版本 $LAST_VERSION 已是最新，无需更新"
+            echo "NEED_UPDATE=false" >> $GITHUB_ENV
+          else
+            echo "发现新版本 ${{ env.RELEASE_TAG }}，需要更新（当前版本: $LAST_VERSION）"
           fi
           
       - name: Download and process release
-        if: env.UPDATE != 'true'   # 仅在需要更新时执行
+        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
           # 下载最新发布包
           curl -L "${{ env.DOWNLOAD_URL }}" -o original_dist.zip
@@ -71,7 +76,7 @@ jobs:
           cd ..
           
       - name: Clean existing files
-        if: env.UPDATE != 'true'   # 仅在需要更新时执行
+        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
           # 创建需要保留的文件列表
           echo ".github/" > preserve.txt
@@ -82,23 +87,23 @@ jobs:
           find . -maxdepth 1 -type d -not -name ".*" -not -name "temp_extract" -not -name "processed_dist" -not -name ".github" -exec rm -rf {} +
           
       - name: Move files to root
-        if: env.UPDATE != 'true'   # 仅在需要更新时执行
+        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
           # 将处理后的文件移动到仓库根目录
           cp -r processed_dist/* .
           
           # 清理临时文件和目录
-          rm -rf temp_extract processed_dist original_dist.zip
+          rm -rf temp_extract processed_dist original_dist.zip zashboard.zip
           
       - name: Update version in README
-        if: env.UPDATE != 'true'   # 仅在需要更新时执行
+        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
           # 更新 README.md 中的版本信息
           sed -i "s|<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|" README.md
           sed -i "s|\[<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->\](https://github.com/Zephyruso/zashboard/releases)|[<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->](https://github.com/Zephyruso/zashboard/releases)|" README.md
           
       - name: Create new release
-        if: env.UPDATE != 'true'   # 仅在需要更新时执行
+        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         uses: softprops/action-gh-release@v1
         with:
           tag_name: "${{ env.RELEASE_TAG }}"
@@ -113,11 +118,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Prepare and push to main
-        if: env.UPDATE != 'true'   # 仅在需要更新时执行
+        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
           # 配置 Git
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
+          
+          # 删除任何残留的 zashboard.zip（确保不会被提交）
+          rm -f zashboard.zip
           
           # 添加所有更改
           git add -A
@@ -128,7 +136,7 @@ jobs:
           git push origin main
           
       - name: Prepare and push to gh-pages
-        if: env.UPDATE != 'true'   # 仅在需要更新时执行
+        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
           # 检出 gh-pages 分支（如果不存在则创建）
           git checkout gh-pages 2>/dev/null || git checkout -b gh-pages
@@ -144,6 +152,9 @@ jobs:
             echo "创建空 CNAME 文件"
             touch CNAME
           fi
+          
+          # 删除任何残留的 zashboard.zip（确保不会被提交到gh-pages分支）
+          rm -f zashboard.zip
           
           # 添加更改
           git add -A
