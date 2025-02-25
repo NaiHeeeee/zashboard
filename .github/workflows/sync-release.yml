@@ -74,15 +74,12 @@ jobs:
           sed -i "s|<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|" README.md
           sed -i "s|\[<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->\](https://github.com/Zephyruso/zashboard/releases)|[<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->](https://github.com/Zephyruso/zashboard/releases)|" README.md
 
-      - name: Prepare and push to main branch
+      - name: Prepare and push to main and gh-pages
         if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
         run: |
           # 配置 Git
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          
-          # 切换到 main 分支
-          git checkout main
           
           # 删除 CNAME 文件（如果存在）
           if [ -f CNAME ]; then
@@ -90,33 +87,15 @@ jobs:
             git add CNAME
           fi
           
-          # 添加所有更改并提交
+          # 添加所有更改
           git add -A
-          git commit -m "Sync latest release ${{ env.RELEASE_TAG }} to main (without CNAME)"
+          
+          # 提交并推送至 main 分支
+          git checkout main
+          git commit -m "Sync latest release ${{ env.RELEASE_TAG }} to main"
           git push origin main
-
-      - name: Prepare and push to gh-pages branch
-        if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
-        run: |
-          # 配置 Git（重复配置以确保环境正确）
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
           
-          # 切换到 gh-pages 分支（如果不存在则创建）
+          # 提交并推送至 gh-pages 分支（如果不存在则创建）
           git checkout gh-pages || git checkout -b gh-pages
-          
-          # 清理 gh-pages 分支中的旧文件（保留 .git 和当前工作文件）
-          find . -maxdepth 1 -not -name "." -not -name ".." -not -name ".git" -exec rm -rf {} +
-          
-          # 将 main 分支的最新文件复制过来
-          git checkout main -- .
-          
-          # 修改 CNAME 文件内容（修改为需要部署GitHub pages的域名）
-          echo "zashboard.naihe.us.kg" > CNAME
-          
-          # 添加所有更改并提交
-          git add -A
-          git commit -m "Sync latest release ${{ env.RELEASE_TAG }} to gh-pages (with updated CNAME)"
-          
-          # 推送更改到 gh-pages 分支
+          git commit -m "Sync latest release ${{ env.RELEASE_TAG }} to gh-pages" || true
           git push origin gh-pages --force
