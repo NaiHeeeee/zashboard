@@ -41,13 +41,34 @@ jobs:
             echo "NO_UPDATE=true" >> $GITHUB_ENV
           fi
           
-      - name: Download and extract release
+      - name: Download and process release
         if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
         run: |
-          # 下载并解压最新发布包
-          curl -L "${{ env.DOWNLOAD_URL }}" -o dist.zip
-          mkdir -p temp_dist
-          unzip dist.zip -d temp_dist
+          # 下载最新发布包
+          curl -L "${{ env.DOWNLOAD_URL }}" -o original_dist.zip
+          
+          # 创建临时处理目录
+          mkdir -p temp_extract
+          mkdir -p processed_dist
+          
+          # 解压原始dist.zip
+          unzip original_dist.zip -d temp_extract
+          
+          # 检查并删除CNAME文件（如果存在）
+          if [ -f temp_extract/dist/CNAME ]; then
+            echo "移除CNAME文件"
+            rm temp_extract/dist/CNAME
+          else
+            echo "CNAME文件不存在，无需删除"
+          fi
+          
+          # 复制处理后的文件到processed_dist目录
+          cp -r temp_extract/dist/* processed_dist/
+          
+          # 重新打包为新的zip文件
+          cd processed_dist
+          zip -r ../processed_dist.zip ./*
+          cd ..
           
       - name: Clean existing files
         if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
@@ -57,18 +78,17 @@ jobs:
           echo "README.md" >> preserve.txt
           
           # 删除除保留文件以外的文件和目录
-          find . -maxdepth 1 -type f -not -name "README.md" -not -name ".github" -not -name "preserve.txt" -delete
-          find . -maxdepth 1 -type d -not -name ".*" -not -name "temp_dist" -not -name ".github" -exec rm -rf {} +
-          
-          # 清理临时文件
-          rm -f preserve.txt
+          find . -maxdepth 1 -type f -not -name "README.md" -not -name ".github" -not -name "preserve.txt" -not -name "original_dist.zip" -not -name "processed_dist.zip" -delete
+          find . -maxdepth 1 -type d -not -name ".*" -not -name "temp_extract" -not -name "processed_dist" -not -name ".github" -exec rm -rf {} +
           
       - name: Move files to root
         if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
         run: |
-          # 将解压目录中的文件移动到仓库根目录
-          mv temp_dist/dist/* .
-          rm -rf temp_dist
+          # 将处理后的文件移动到仓库根目录
+          cp -r processed_dist/* .
+          
+          # 清理临时文件和目录
+          rm -rf temp_extract processed_dist original_dist.zip
           
       - name: Update version in README
         if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
@@ -76,6 +96,21 @@ jobs:
           # 更新 README.md 中的版本信息
           sed -i "s|<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|" README.md
           sed -i "s|\[<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->\](https://github.com/Zephyruso/zashboard/releases)|[<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->](https://github.com/Zephyruso/zashboard/releases)|" README.md
+          
+      - name: Create new release
+        if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "${{ env.RELEASE_TAG }}-nocname"
+          name: "${{ env.RELEASE_TAG }} (无CNAME版本)"
+          body: |
+            此版本基于原始 ${{ env.RELEASE_TAG }} 发布，已移除CNAME文件以便在GitHub Pages上部署。
+            
+            原始发布请参考：https://github.com/Zephyruso/zashboard/releases/tag/${{ env.RELEASE_TAG }}
+          files: |
+            processed_dist.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Prepare and push to main and gh-pages
         if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
@@ -84,12 +119,7 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
-          # 删除 CNAME 文件（如果存在）
-          if [ -f CNAME ]; then
-            rm CNAME
-          fi
-          
-          # 添加所有更改（包括可能的 CNAME 删除）
+          # 添加所有更改
           git add -A
           
           # 提交并推送至 main 分支
