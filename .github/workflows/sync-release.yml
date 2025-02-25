@@ -60,6 +60,9 @@ jobs:
       - name: Move files to root
         if: env.NO_UPDATE != 'true'
         run: |
+          # 删除目标目录中的同名目录
+          find temp_dist/dist -type d -exec rm -rf {} +
+          
           # 将解压目录中的文件移动到仓库根目录
           mv temp_dist/dist/* .
           rm -rf temp_dist
