@@ -56,26 +56,27 @@ jobs:
       - name: Download and extract release
         if: env.UPDATED == 'true'
         run: |
-          # 下载最新版本的 dist.zip 文件
-          curl -sLJO $DOWNLOAD_URL
-          # 解压 dist.zip 文件
-          unzip -o dist.zip
-          # 删除 dist.zip 文件
-          rm dist.zip
+          curl -L $DOWNLOAD_URL -o dist.zip
+          mkdir -p temp_dist
+          unzip dist.zip -d temp_dist
 
       - name: Clean existing files
         if: env.UPDATED == 'true'
         run: |
-          # 删除根目录下的所有文件
-          rm -rf *
+          # Create a list of files to preserve
+          echo ".github/" > preserve.txt
+          echo "README.md" >> preserve.txt
+          
+          # Remove all files except those in preserve.txt
+          find . -maxdepth 1 -type f ! -name "$(paste -sd '\|' preserve.txt)" -delete
+          find . -maxdepth 1 -type d ! -name ".*" ! -name "temp_dist" -exec rm -rf {} +
 
       - name: Move files to root
         if: env.UPDATED == 'true'
         run: |
-          # 将 dist 目录下的所有文件移动到根目录
-          mv dist/* .
-          # 删除 dist 目录
-          rm -rf dist
+          # Move files from the inner dist directory to root
+          mv temp_dist/dist/* .
+          rm -rf temp_dist
 
 
         
