@@ -12,7 +12,7 @@ jobs:
   sync:
     runs-on: ubuntu-latest    # 在最新的 Ubuntu 虚拟机环境中运行
     env:                      # 定义环境变量
-      NO_UPDATE: false        # 是否需要更新的标志
+      UPDATE: false        # 是否需要更新的标志
       RELEASE_TAG: ''         # 最新版本的标签
       DOWNLOAD_URL: ''        # 最新版本的下载链接
     
@@ -38,11 +38,11 @@ jobs:
           LAST_VERSION=$(sed -n 's/.*<!-- RELEASE_TAG -->\(.*\)<!-- \/RELEASE_TAG -->/\1/p' README.md)
           echo "LAST_VERSION=$LAST_VERSION" >> $GITHUB_ENV
           if [ "$LAST_VERSION" == "${{ env.RELEASE_TAG }}" ]; then
-            echo "NO_UPDATE=true" >> $GITHUB_ENV
+            echo "UPDATE=true" >> $GITHUB_ENV
           fi
           
       - name: Download and process release
-        if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
+        if: env.UPDATE != 'true'   # 仅在需要更新时执行
         run: |
           # 下载最新发布包
           curl -L "${{ env.DOWNLOAD_URL }}" -o original_dist.zip
@@ -71,7 +71,7 @@ jobs:
           cd ..
           
       - name: Clean existing files
-        if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
+        if: env.UPDATE != 'true'   # 仅在需要更新时执行
         run: |
           # 创建需要保留的文件列表
           echo ".github/" > preserve.txt
@@ -82,7 +82,7 @@ jobs:
           find . -maxdepth 1 -type d -not -name ".*" -not -name "temp_extract" -not -name "processed_dist" -not -name ".github" -exec rm -rf {} +
           
       - name: Move files to root
-        if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
+        if: env.UPDATE != 'true'   # 仅在需要更新时执行
         run: |
           # 将处理后的文件移动到仓库根目录
           cp -r processed_dist/* .
@@ -91,14 +91,14 @@ jobs:
           rm -rf temp_extract processed_dist original_dist.zip
           
       - name: Update version in README
-        if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
+        if: env.UPDATE != 'true'   # 仅在需要更新时执行
         run: |
           # 更新 README.md 中的版本信息
           sed -i "s|<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|" README.md
           sed -i "s|\[<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->\](https://github.com/Zephyruso/zashboard/releases)|[<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->](https://github.com/Zephyruso/zashboard/releases)|" README.md
           
       - name: Create new release
-        if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
+        if: env.UPDATE != 'true'   # 仅在需要更新时执行
         uses: softprops/action-gh-release@v1
         with:
           tag_name: "${{ env.RELEASE_TAG }}"
@@ -113,7 +113,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Prepare and push to main
-        if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
+        if: env.UPDATE != 'true'   # 仅在需要更新时执行
         run: |
           # 配置 Git
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
@@ -128,7 +128,7 @@ jobs:
           git push origin main
           
       - name: Prepare and push to gh-pages
-        if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
+        if: env.UPDATE != 'true'   # 仅在需要更新时执行
         run: |
           # 检出 gh-pages 分支（如果不存在则创建）
           git checkout gh-pages 2>/dev/null || git checkout -b gh-pages
