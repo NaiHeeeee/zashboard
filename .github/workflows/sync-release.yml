@@ -84,18 +84,19 @@ jobs:
           # 删除 CNAME 文件（如果存在）
           if [ -f CNAME ]; then
             rm CNAME
-            git add CNAME
           fi
           
-          # 添加所有更改
+          # 添加所有更改（包括可能的 CNAME 删除）
           git add -A
           
           # 提交并推送至 main 分支
           git checkout main
-          git commit -m "Sync latest release ${{ env.RELEASE_TAG }} to main"
+          git commit -m "Sync latest release ${{ env.RELEASE_TAG }} to main" || echo "No changes to commit"
           git push origin main
           
-          # 提交并推送至 gh-pages 分支（如果不存在则创建）
+          # 切换到 gh-pages 分支（如果不存在则创建）
           git checkout gh-pages || git checkout -b gh-pages
-          git commit -m "Sync latest release ${{ env.RELEASE_TAG }} to gh-pages" || true
+          
+          # 提交并推送至 gh-pages 分支
+          git commit -m "Sync latest release ${{ env.RELEASE_TAG }} to gh-pages" || echo "No changes to commit"
           git push origin gh-pages --force

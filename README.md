@@ -4,7 +4,8 @@
 
 ### 部署
 
-一键部署至Vercel：[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/project?template=https://github.com/NaiHeeeee/zashboard)
+一键部署至Vercel：
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/project?template=https://github.com/NaiHeeeee/zashboard)
 
 ### Action运行状态
 
