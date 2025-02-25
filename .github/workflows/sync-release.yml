@@ -32,7 +32,7 @@ jobs:
           if [ ! -f README.md ]; then
             echo "none" > README.md
           fi
-          LAST_VERSION=$(cat README.md)
+          LAST_VERSION=$(grep -oP '(?<=<!-- RELEASE_TAG -->).*?(?=<!-- \/RELEASE_TAG -->)' README.md || echo "none")
           echo "LAST_VERSION=$LAST_VERSION" >> $GITHUB_ENV
           if [ "$LAST_VERSION" == "${{ env.RELEASE_TAG }}" ]; then
             echo "NO_UPDATE=true" >> $GITHUB_ENV
