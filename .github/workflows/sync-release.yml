@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RELEASE_TAG: ''
+      DOWNLOAD_URL: ''
       UPDATED: 'false'
 
     steps:
@@ -51,7 +52,45 @@ jobs:
             sed -i "s|<!-- RELEASE_TAG -->.*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->$RELEASE_TAG<!-- /RELEASE_TAG -->|" README.md
             echo "UPDATED=true" >> $GITHUB_ENV
           fi
+          
+      - name: Check last processed version
+        id: check_version
+        run: |
+          if [ ! -f README.md ]; then
+            echo "none" > README.md
+          fi
+          LAST_VERSION=$(cat README.md)
+          echo "LAST_VERSION=$LAST_VERSION" >> $GITHUB_ENV
+          if [ "$LAST_VERSION" == "${{ env.RELEASE_TAG }}" ]; then
+            echo "NO_UPDATE=true" >> $GITHUB_ENV
+          fi
+          
+      - name: Download and extract release
+        if: env.UPDATED != 'true'
+        run: |
+          curl -L "${{ env.DOWNLOAD_URL }}" -o dist.zip
+          mkdir -p temp_dist
+          unzip dist.zip -d temp_dist
+          
+      - name: Clean existing files
+        if: env.UPDATED != 'true'
+        run: |
+          # Create a list of files to preserve
+          echo ".github/" > preserve.txt
+          echo "README.md" >> preserve.txt
+          
+          # Remove all files except those in preserve.txt
+          find . -maxdepth 1 -type f ! -name "$(paste -sd '\|' preserve.txt)" -delete
+          find . -maxdepth 1 -type d ! -name ".*" ! -name "temp_dist" -exec rm -rf {} +
+          
+      - name: Move files to root
+        if: env.UPDATED != 'true'
+        run: |
+          # Move files from the inner dist directory to root
+          mv temp_dist/dist/* .
+          rm -rf temp_dist
 
+        
       # 当版本号发生更新时，提交并推送更改
       - name: Commit 和 push changes
         if: env.UPDATED == 'true'
