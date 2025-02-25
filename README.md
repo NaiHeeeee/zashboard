@@ -6,7 +6,7 @@
 
 一键部署至Vercel：
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/project?template=https://github.com/NaiHeeeee/zashboard)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/NaiHeeeee/zashboard&project-name=zashboard&repository-name=zashboard)
 
 ### Action运行状态
 
