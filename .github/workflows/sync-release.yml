@@ -94,12 +94,12 @@ jobs:
           
           # 提交并推送至 main 分支
           git checkout main
-          git commit -m "Sync latest release ${{ env.RELEASE_TAG }} to main" || echo "No changes to commit"
+          git commit -m "Sync latest release ${{ env.RELEASE_TAG }}" || True
           git push origin main
           
           # 切换到 gh-pages 分支（如果不存在则创建）
           git checkout gh-pages || git checkout -b gh-pages
           
           # 提交并推送至 gh-pages 分支
-          git commit -m "Sync latest release ${{ env.RELEASE_TAG }} to gh-pages" || echo "No changes to commit"
+          git commit -m "Sync latest release ${{ env.RELEASE_TAG }}" || True
           git push origin gh-pages --force
