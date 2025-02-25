@@ -53,16 +53,16 @@ jobs:
           echo ".github/" > preserve.txt
           echo "README.md" >> preserve.txt
           
-          # 删除除保留列表以外的文件
-          find . -maxdepth 1 -type f | grep -v -f preserve.txt | xargs rm -f
-          find . -maxdepth 1 -type d ! -name ".*" ! -name "temp_dist" | grep -v -f preserve.txt | xargs rm -rf
+          # 删除除保留文件以外的文件（使用多个 -not -name）
+          find . -maxdepth 1 -type f -not -name "README.md" -not -name ".github" -not -name "preserve.txt" -delete
+          find . -maxdepth 1 -type d -not -name ".*" -not -name "temp_dist" -not -name ".github" -exec rm -rf {} +
+          
+          # 清理临时文件
+          rm -f preserve.txt
           
       - name: Move files to root
         if: env.NO_UPDATE != 'true'
         run: |
-          # 删除目标目录中的同名目录
-          find temp_dist/dist -type d -exec rm -rf {} +
-          
           # 将解压目录中的文件移动到仓库根目录
           mv temp_dist/dist/* .
           rm -rf temp_dist
