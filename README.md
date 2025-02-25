@@ -2,4 +2,8 @@
 
 当前版本: [<!-- RELEASE_TAG -->v1.68.1<!-- /RELEASE_TAG -->](https://github.com/Zephyruso/zashboard/releases)
 
+## 部署
+### 一键部署
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/project?template=https://github.com/NaiHeeeee/zashboard)
+
 [![Sync Latest Release](https://github.com/NaiHeeeee/zashboard/actions/workflows/sync-release.yml/badge.svg)](https://github.com/NaiHeeeee/zashboard/actions/workflows/sync-release.yml)

@@ -2,44 +2,38 @@ name: Sync Latest Release   # 同步最新发布
 
 on:
   schedule:
-    - cron: '0 * * * *'  # 每小时运行一次，cron 表达式表示每小时的第0分钟触发
-  workflow_dispatch:      # 允许手动触发工作流，方便测试或紧急同步
+    - cron: '0 * * * *'  # 每小时运行一次
+  workflow_dispatch:      # 允许手动触发
 
 jobs:
   sync:
     runs-on: ubuntu-latest    # 在最新的 Ubuntu 虚拟机环境中运行
     env:                      # 定义环境变量
-      NO_UPDATE: false        # 是否需要更新的标志，默认为 false（需要更新）
-      RELEASE_TAG: ''         # 最新版本的标签，初始为空
-      DOWNLOAD_URL: ''        # 最新版本的下载链接，初始为空
+      NO_UPDATE: false        # 是否需要更新的标志
+      RELEASE_TAG: ''         # 最新版本的标签
+      DOWNLOAD_URL: ''        # 最新版本的下载链接
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3        # 检出当前仓库的代码到工作目录
+        uses: actions/checkout@v3        # 检出当前仓库代码
         
       - name: Get latest release info
         id: release
         run: |
           # 获取最新发布信息
-          # 使用 curl 通过 GitHub API 获取 Zephyruso/zashboard 仓库的最新 release 数据
           RELEASE_INFO=$(curl -s https://api.github.com/repos/Zephyruso/zashboard/releases/latest)
-          # 提取版本标签并写入环境变量 RELEASE_TAG
           echo "RELEASE_TAG=$(echo $RELEASE_INFO | jq -r .tag_name)" >> $GITHUB_ENV
-          # 提取 dist.zip 文件的下载地址并写入环境变量 DOWNLOAD_URL
           echo "DOWNLOAD_URL=$(echo $RELEASE_INFO | jq -r '.assets[] | select(.name=="dist.zip") | .browser_download_url')" >> $GITHUB_ENV
           
       - name: Check last processed version
         id: check_version
         run: |
           # 检查上一次处理的版本
-          # 如果 README.md 不存在或没有版本标记，则初始化一个默认版本 v0.0.0
           if [ ! -f README.md ] || ! grep -q "<!-- RELEASE_TAG -->" README.md; then
             echo "当前版本: <!-- RELEASE_TAG -->v0.0.0<!-- /RELEASE_TAG -->" >> README.md
           fi
-          # 从 README.md 中提取上一次记录的版本号
           LAST_VERSION=$(sed -n 's/.*<!-- RELEASE_TAG -->\(.*\)<!-- \/RELEASE_TAG -->/\1/p' README.md)
           echo "LAST_VERSION=$LAST_VERSION" >> $GITHUB_ENV
-          # 如果上一次版本与当前版本相同，则无需更新，设置 NO_UPDATE 为 true
           if [ "$LAST_VERSION" == "${{ env.RELEASE_TAG }}" ]; then
             echo "NO_UPDATE=true" >> $GITHUB_ENV
           fi
@@ -48,57 +42,81 @@ jobs:
         if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
         run: |
           # 下载并解压最新发布包
-          # 使用 curl 下载 dist.zip 文件
           curl -L "${{ env.DOWNLOAD_URL }}" -o dist.zip
-          # 创建临时目录 temp_dist 用于解压
           mkdir -p temp_dist
-          # 将 dist.zip 解压到 temp_dist 目录
           unzip dist.zip -d temp_dist
           
       - name: Clean existing files
         if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
         run: |
-          # 创建需要保留的文件和目录列表
-          echo ".github/" > preserve.txt    # 保留 .github 目录（工作流文件所在目录）
-          echo "README.md" >> preserve.txt  # 保留 README.md 文件
+          # 创建需要保留的文件列表
+          echo ".github/" > preserve.txt
+          echo "README.md" >> preserve.txt
           
           # 删除除保留文件以外的文件和目录
-          # 删除根目录下除 README.md、.github、preserve.txt 以外的所有文件
           find . -maxdepth 1 -type f -not -name "README.md" -not -name ".github" -not -name "preserve.txt" -delete
-          # 删除根目录下除隐藏目录、temp_dist、.github 以外的所有目录
           find . -maxdepth 1 -type d -not -name ".*" -not -name "temp_dist" -not -name ".github" -exec rm -rf {} +
           
-          # 清理临时文件 preserve.txt
+          # 清理临时文件
           rm -f preserve.txt
           
       - name: Move files to root
         if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
         run: |
           # 将解压目录中的文件移动到仓库根目录
-          # 将 temp_dist/dist 下的所有文件移动到根目录
           mv temp_dist/dist/* .
-          # 删除临时目录 temp_dist
           rm -rf temp_dist
           
       - name: Update version in README
         if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
         run: |
           # 更新 README.md 中的版本信息
-          # 替换旧的版本号为新的 RELEASE_TAG
           sed -i "s|<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|" README.md
-          # 更新 README.md 中的版本链接（如果存在）
           sed -i "s|\[<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->\](https://github.com/Zephyruso/zashboard/releases)|[<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->](https://github.com/Zephyruso/zashboard/releases)|" README.md
-          
-      - name: Commit and push changes
+
+      - name: Prepare and push to main branch
         if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
         run: |
-          # 配置 Git 并提交更新
-          # 设置 Git 用户信息，使用 GitHub Actions 的默认 bot 身份
+          # 配置 Git
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          # 添加所有更改到暂存区
+          
+          # 切换到 main 分支
+          git checkout main
+          
+          # 删除 CNAME 文件（如果存在）
+          if [ -f CNAME ]; then
+            rm CNAME
+            git add CNAME
+          fi
+          
+          # 添加所有更改并提交
           git add -A
-          # 提交更改，提交信息包含最新版本号
-          git commit -m "Sync latest release ${{ env.RELEASE_TAG }}"
-          # 推送更改到远程仓库
-          git push
+          git commit -m "Sync latest release ${{ env.RELEASE_TAG }} to main (without CNAME)"
+          git push origin main
+
+      - name: Prepare and push to gh-pages branch
+        if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
+        run: |
+          # 配置 Git（重复配置以确保环境正确）
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # 切换到 gh-pages 分支（如果不存在则创建）
+          git checkout gh-pages || git checkout -b gh-pages
+          
+          # 清理 gh-pages 分支中的旧文件（保留 .git 和当前工作文件）
+          find . -maxdepth 1 -not -name "." -not -name ".." -not -name ".git" -exec rm -rf {} +
+          
+          # 将 main 分支的最新文件复制过来
+          git checkout main -- .
+          
+          # 修改 CNAME 文件内容（修改为需要部署GitHub pages的域名）
+          echo "zashboard.naihe.us.kg" > CNAME
+          
+          # 添加所有更改并提交
+          git add -A
+          git commit -m "Sync latest release ${{ env.RELEASE_TAG }} to gh-pages (with updated CNAME)"
+          
+          # 推送更改到 gh-pages 分支
+          git push origin gh-pages --force
