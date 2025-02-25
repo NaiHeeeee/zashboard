@@ -29,10 +29,10 @@ jobs:
         id: check_version
         run: |
           # 检查上一次处理的版本
-          if [ ! -f README.md ]; then
-            echo "none" > README.md
+          if [ ! -f README.md ] || ! grep -q "<!-- RELEASE_TAG -->" README.md; then
+            echo "当前版本: <!-- RELEASE_TAG -->v0.0.0<!-- /RELEASE_TAG -->" >> README.md
           fi
-          LAST_VERSION=$(grep -oP '(?<=<!-- RELEASE_TAG -->).*?(?=<!-- \/RELEASE_TAG -->)' README.md || echo "none")
+          LAST_VERSION=$(sed -n 's/.*<!-- RELEASE_TAG -->\(.*\)<!-- \/RELEASE_TAG -->/\1/p' README.md)
           echo "LAST_VERSION=$LAST_VERSION" >> $GITHUB_ENV
           if [ "$LAST_VERSION" == "${{ env.RELEASE_TAG }}" ]; then
             echo "NO_UPDATE=true" >> $GITHUB_ENV
@@ -64,11 +64,16 @@ jobs:
           mv temp_dist/dist/* .
           rm -rf temp_dist
           
-      - name: Update version file
+      - name: Update version in README
         if: env.NO_UPDATE != 'true'
         run: |
-          # 使用 sed 替换 README.md 中的版本信息标记之间的内容
-          sed -i "s/<!-- RELEASE_TAG -->.*<!-- \/RELEASE_TAG -->/<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- \\/RELEASE_TAG -->/" README.md
+          if [ ! -f README.md ]; then
+            echo "当前版本: <!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->" > README.md
+          elif ! grep -q "<!-- RELEASE_TAG -->" README.md; then
+            echo "当前版本: <!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->" >> README.md
+          else
+            sed -i "s|<!-- RELEASE_TAG -->.*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|" README.md
+          fi
           
       - name: Commit and push changes
         if: env.NO_UPDATE != 'true'
