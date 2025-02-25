@@ -67,7 +67,7 @@ jobs:
           
           # 重新打包为新的zip文件
           cd processed_dist
-          zip -r ../processed_dist.zip ./*
+          zip -r ../zashboard.zip ./*
           cd ..
           
       - name: Clean existing files
@@ -101,7 +101,7 @@ jobs:
         if: env.NO_UPDATE != 'true'   # 仅在需要更新时执行
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: "${{ env.RELEASE_TAG }}-nocname"
+          tag_name: "${{ env.RELEASE_TAG }}"
           name: "${{ env.RELEASE_TAG }}"
           body: |
             此版本基于原始 ${{ env.RELEASE_TAG }} 发布，已移除CNAME文件。
