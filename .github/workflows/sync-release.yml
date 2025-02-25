@@ -68,7 +68,7 @@ jobs:
         if: env.NO_UPDATE != 'true'
         run: |
           # 使用 sed 替换 README.md 中的版本信息标记之间的内容
-          sed -i "s/<!-- RELEASE_TAG -->.*<!-- \/RELEASE_TAG -->/<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- \/RELEASE_TAG -->/" README.md
+          sed -i "s/<!-- RELEASE_TAG -->.*<!-- \/RELEASE_TAG -->/<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- \\/RELEASE_TAG -->/" README.md
           
       - name: Commit and push changes
         if: env.NO_UPDATE != 'true'
