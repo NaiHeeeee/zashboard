@@ -79,24 +79,6 @@ jobs:
           zip -r ../zashboard.zip ./*
           cd ..
           
-          # 确保zip文件存在
-          ls -la zashboard.zip
-          echo "zashboard.zip 文件大小: $(du -h zashboard.zip | cut -f1)"
-      
-      - name: Create new release
-        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: "${{ env.RELEASE_TAG }}"
-          name: "${{ env.RELEASE_TAG }}"
-          body: |
-            此版本基于原始 ${{ env.RELEASE_TAG }} 发布，已移除CNAME文件。
-            
-            原始发布：https://github.com/Zephyruso/zashboard/releases/tag/${{ env.RELEASE_TAG }}
-          files: zashboard.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
       - name: Clean existing files
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
@@ -124,7 +106,7 @@ jobs:
           cp -r processed_dist/* .
           
           # 清理临时文件和目录
-          rm -rf temp_extract processed_dist original_dist.zip
+          rm -rf temp_extract processed_dist original_dist.zip zashboard.zip
           
       - name: Update version in README
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
@@ -132,6 +114,21 @@ jobs:
           # 更新 README.md 中的版本信息
           sed -i "s|<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|" README.md
           sed -i "s|\[<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->\](https://github.com/Zephyruso/zashboard/releases)|[<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->](https://github.com/Zephyruso/zashboard/releases)|" README.md
+          
+      - name: Create new release
+        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "${{ env.RELEASE_TAG }}"
+          name: "${{ env.RELEASE_TAG }}"
+          body: |
+            此版本基于原始 ${{ env.RELEASE_TAG }} 发布，已移除CNAME文件。
+            
+            原始发布：https://github.com/Zephyruso/zashboard/releases/tag/${{ env.RELEASE_TAG }}
+          files: |
+            zashboard.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Prepare and push to main
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
@@ -139,6 +136,9 @@ jobs:
           # 配置 Git
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
+          
+          # 删除任何残留的 zashboard.zip（确保不会被提交）
+          rm -f zashboard.zip
           
           # 添加所有更改
           git add -A
@@ -165,6 +165,9 @@ jobs:
             echo "创建空 CNAME 文件"
             touch CNAME
           fi
+          
+          # 删除任何残留的 zashboard.zip（确保不会被提交到gh-pages分支）
+          rm -f zashboard.zip
           
           # 添加更改
           git add -A
