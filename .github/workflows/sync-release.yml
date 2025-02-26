@@ -100,14 +100,23 @@ jobs:
       - name: Clean existing files
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
-          # 创建需要保留的文件列表
-          echo ".github/" > preserve.txt
-          echo "README.md" >> preserve.txt
+          # 定义需要保留的文件和目录模式
+          PRESERVE_PATTERNS=(
+            ".github/"       # GitHub配置文件
+            "README.md"      # 自述文件
+          )
           
-          # 删除除保留文件以外的文件和目录
-          find . -maxdepth 1 -type f -not -name "README.md" -not -name ".github" -not -name "preserve.txt" -not -name "original_dist.zip" -not -name "zashboard.zip" -delete
-          find . -maxdepth 1 -type d -not -name ".*" -not -name "temp_extract" -not -name "processed_dist" -not -name ".github" -exec rm -rf {} +
+          # 创建临时文件列出所有需要保留的内容
+          printf "%s\n" "${PRESERVE_PATTERNS[@]}" > preserve.txt
           
+          # 使用find命令清理非保留文件，包括zashboard.zip
+          find . -maxdepth 1 -type f -not -name "$(cat preserve.txt | tr '\n' '|' | sed 's/|$//')" -delete
+          find . -maxdepth 1 -type d -not -path "." -not -name "$(cat preserve.txt | tr '\n' '|' | sed 's/|$//')" \
+            -not -name "temp_extract" -not -name "processed_dist" -exec rm -rf {} +
+          
+          # 清理临时文件
+          rm -f preserve.txt  
+
       - name: Move files to root
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
@@ -116,7 +125,6 @@ jobs:
           
           # 清理临时文件和目录
           rm -rf temp_extract processed_dist original_dist.zip
-          # 此处不再删除 zashboard.zip，因为在前面的步骤中已经使用过了
           
       - name: Update version in README
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
@@ -131,9 +139,6 @@ jobs:
           # 配置 Git
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          
-          # 现在可以删除 zashboard.zip（因为发布步骤已经完成）
-          rm -f zashboard.zip
           
           # 添加所有更改
           git add -A
