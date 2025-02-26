@@ -79,42 +79,10 @@ jobs:
           zip -r ../zashboard.zip ./*
           cd ..
           
-      - name: Clean existing files
-        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
-        run: |
-          # 定义需要保留的文件和目录模式
-          PRESERVE_PATTERNS=(
-            ".github/"       # GitHub配置文件
-            "README.md"      # 自述文件
-          )
-          
-          # 创建临时文件列出所有需要保留的内容
-          printf "%s\n" "${PRESERVE_PATTERNS[@]}" > preserve.txt
-          
-          # 使用find命令清理非保留文件，包括zashboard.zip
-          find . -maxdepth 1 -type f -not -name "$(cat preserve.txt | tr '\n' '|' | sed 's/|$//')" -delete
-          find . -maxdepth 1 -type d -not -path "." -not -name "$(cat preserve.txt | tr '\n' '|' | sed 's/|$//')" \
-            -not -name "temp_extract" -not -name "processed_dist" -exec rm -rf {} +
-          
-          # 清理临时文件
-          rm -f preserve.txt  
-
-      - name: Move files to root
-        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
-        run: |
-          # 将处理后的文件移动到仓库根目录
-          cp -r processed_dist/* .
-          
-          # 清理临时文件和目录
-          rm -rf temp_extract processed_dist original_dist.zip zashboard.zip
-          
-      - name: Update version in README
-        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
-        run: |
-          # 更新 README.md 中的版本信息
-          sed -i "s|<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|" README.md
-          sed -i "s|\[<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->\](https://github.com/Zephyruso/zashboard/releases)|[<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->](https://github.com/Zephyruso/zashboard/releases)|" README.md
-          
+          # 确保zip文件存在
+          ls -la zashboard.zip
+          echo "zashboard.zip 文件大小: $(du -h zashboard.zip | cut -f1)"
+      
       - name: Create new release
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         uses: softprops/action-gh-release@v1
@@ -125,11 +93,36 @@ jobs:
             此版本基于原始 ${{ env.RELEASE_TAG }} 发布，已移除CNAME文件。
             
             原始发布：https://github.com/Zephyruso/zashboard/releases/tag/${{ env.RELEASE_TAG }}
-          files: |
-            zashboard.zip
+          files: zashboard.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+          
+      - name: Clean existing files
+        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
+        run: |
+          # 创建需要保留的文件列表
+          echo ".github/" > preserve.txt
+          echo "README.md" >> preserve.txt
+          
+          # 删除除保留文件以外的文件和目录
+          find . -maxdepth 1 -type f -not -name "README.md" -not -name ".github" -not -name "preserve.txt" -not -name "original_dist.zip" -not -name "zashboard.zip" -delete
+          find . -maxdepth 1 -type d -not -name ".*" -not -name "temp_extract" -not -name "processed_dist" -not -name ".github" -exec rm -rf {} +
+          
+      - name: Move files to root
+        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
+        run: |
+          # 将处理后的文件移动到仓库根目录
+          cp -r processed_dist/* .
+          
+          # 清理临时文件和目录
+          rm -rf temp_extract processed_dist original_dist.zip
+          
+      - name: Update version in README
+        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
+        run: |
+          # 更新 README.md 中的版本信息
+          sed -i "s|<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|" README.md
+          sed -i "s|\[<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->\](https://github.com/Zephyruso/zashboard/releases)|[<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->](https://github.com/Zephyruso/zashboard/releases)|" README.md
       - name: Prepare and push to main
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
@@ -137,7 +130,7 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
-          # 删除任何残留的 zashboard.zip（确保不会被提交）
+          # 删除 zashboard.zip
           rm -f zashboard.zip
           
           # 添加所有更改
@@ -165,9 +158,6 @@ jobs:
             echo "创建空 CNAME 文件"
             touch CNAME
           fi
-          
-          # 删除任何残留的 zashboard.zip（确保不会被提交到gh-pages分支）
-          rm -f zashboard.zip
           
           # 添加更改
           git add -A
