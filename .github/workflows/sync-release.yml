@@ -1,4 +1,4 @@
-name: Sync Latest Release   # 同步最新发布
+name: Sync Latest Release
 
 on:
   schedule:
@@ -10,15 +10,15 @@ on:
 
 jobs:
   sync:
-    runs-on: ubuntu-latest    # 在最新的 Ubuntu 虚拟机环境中运行
-    env:                      # 定义环境变量
+    runs-on: ubuntu-latest
+    env:
       NEED_UPDATE: 
       RELEASE_TAG: 
       DOWNLOAD_URL:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3        # 检出当前仓库代码
+        uses: actions/checkout@v4
         
       - name: Get latest release info
         id: release
@@ -31,11 +31,7 @@ jobs:
       - name: Check last processed version
         id: check_version
         run: |
-          # 检查上一次处理的版本
-          if [ ! -f README.md ] || ! grep -q "<!-- RELEASE_TAG -->" README.md; then
-            echo "当前版本: <!-- RELEASE_TAG -->v0.0.0<!-- /RELEASE_TAG -->" >> README.md
-          fi
-          
+          # 检查上一次处理的版本号
           # 提取纯版本号（移除URL和其他字符）
           LAST_VERSION=$(grep -o '<!-- RELEASE_TAG -->[^<]*' README.md | sed 's/<!-- RELEASE_TAG -->//g')
           echo "提取到的版本号: $LAST_VERSION"
@@ -85,7 +81,7 @@ jobs:
       
       - name: Create new release
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: "${{ env.RELEASE_TAG }}"
           name: "${{ env.RELEASE_TAG }}"
