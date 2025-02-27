@@ -2,9 +2,9 @@ name: Sync Latest Release
 
 on:
   schedule:
-    - cron: '0 * * * *'    # 每小时运行一次
-  workflow_dispatch: {}    # 允许手动触发
-  push:                    # 在 main 分支推送时运行
+    - cron: '0 * * * *'   # 每小时运行一次
+  workflow_dispatch:      # 允许手动触发
+  push:                   # 在推送时触发
     branches:
       - main
 
@@ -26,15 +26,17 @@ jobs:
           # 获取最新发布信息
           RELEASE_INFO=$(curl -s https://api.github.com/repos/Zephyruso/zashboard/releases/latest)
           echo "RELEASE_TAG=$(echo $RELEASE_INFO | jq -r .tag_name)" >> $GITHUB_ENV
-          echo "DOWNLOAD_URL=$(echo $RELEASE_INFO | jq -r '.assets[] | select(.name==\"dist.zip\") | .browser_download_url')" >> $GITHUB_ENV
-
+          echo "DOWNLOAD_URL=$(echo $RELEASE_INFO | jq -r '.assets[] | select(.name=="dist.zip") | .browser_download_url')" >> $GITHUB_ENV
+          
       - name: Check last processed version
         id: check_version
         run: |
-          # 检查上一次处理的版本号，提取纯版本号（移除URL和其他字符）
+          # 检查上一次处理的版本号
+          # 提取纯版本号（移除URL和其他字符）
           LAST_VERSION=$(grep -o '<!-- RELEASE_TAG -->[^<]*' README.md | sed 's/<!-- RELEASE_TAG -->//g')
           echo "提取到的版本号: $LAST_VERSION"
           echo "LAST_VERSION=$LAST_VERSION" >> $GITHUB_ENV
+          
           # 设置更新标志（使用纯版本号比较）
           if [ "$LAST_VERSION" != "${{ env.RELEASE_TAG }}" ]; then
             echo "NEED_UPDATE=true" >> $GITHUB_ENV
@@ -43,16 +45,20 @@ jobs:
             echo "NEED_UPDATE=false" >> $GITHUB_ENV
             echo "当前版本 $LAST_VERSION 已是最新，无需更新"
           fi
-
+          
       - name: Download and process release
-        if: env.NEED_UPDATE == 'true'
+        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
           # 下载最新发布包
           curl -L "${{ env.DOWNLOAD_URL }}" -o original_dist.zip
+          
           # 创建临时处理目录
-          mkdir -p temp_extract processed_dist
+          mkdir -p temp_extract
+          mkdir -p processed_dist
+          
           # 解压原始dist.zip
           unzip original_dist.zip -d temp_extract
+          
           # 检查并删除CNAME文件（如果存在）
           if [ -f temp_extract/dist/CNAME ]; then
             echo "移除CNAME文件"
@@ -60,16 +66,19 @@ jobs:
           else
             echo "CNAME文件不存在，无需删除"
           fi
+          
           # 复制处理后的文件到processed_dist目录
           cp -r temp_extract/dist/* processed_dist/
+          
           # 重新打包为新的zip文件
           cd processed_dist
           zip -r ../zashboard.zip ./*
           cd ..
+          
           # 确保zip文件存在
           ls -la zashboard.zip
           echo "zashboard.zip 文件大小: $(du -h zashboard.zip | cut -f1)"
-
+      
       - name: Create new release
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         uses: softprops/action-gh-release@v2
@@ -83,54 +92,62 @@ jobs:
           files: zashboard.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+          
       - name: Clean existing files
-        if: env.NEED_UPDATE == 'true'
+        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
           # 创建需要保留的文件列表
           echo ".github/" > preserve.txt
           echo "README.md" >> preserve.txt
+          
           # 删除除保留文件以外的文件和目录
           find . -maxdepth 1 -type f -not -name "README.md" -not -name ".github" -not -name "preserve.txt" -not -name "original_dist.zip" -not -name "zashboard.zip" -delete
           find . -maxdepth 1 -type d -not -name ".*" -not -name "temp_extract" -not -name "processed_dist" -not -name ".github" -exec rm -rf {} +
-
+          
       - name: Move files to root
-        if: env.NEED_UPDATE == 'true'
+        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
           # 将处理后的文件移动到仓库根目录
           cp -r processed_dist/* .
+          
           # 清理临时文件和目录
           rm -rf temp_extract processed_dist original_dist.zip
-
+          
       - name: Update version in README
-        if: env.NEED_UPDATE == 'true'
+        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
           # 更新 README.md 中的版本信息
           sed -i "s|<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|" README.md
           sed -i "s|\[<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->\](https://github.com/Zephyruso/zashboard/releases)|[<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->](https://github.com/Zephyruso/zashboard/releases)|" README.md
-
+          
       - name: Prepare and push to main
-        if: env.NEED_UPDATE == 'true'
+        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
           # 配置 Git
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
+          
           # 删除 zashboard.zip 和 preserve.txt
-          rm -f zashboard.zip preserve.txt
+          rm -f zashboard.zip
+          rm -f preserve.txt
+          
           # 添加所有更改
           git add -A
+          
           # 提交并推送至 main 分支
           git checkout main
           git commit -m "Sync latest release ${{ env.RELEASE_TAG }}" || echo "No changes to commit"
           git push origin main
-
+          
       - name: Prepare and push to gh-pages
-        if: env.NEED_UPDATE == 'true'
+        if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
           # 检出 gh-pages 分支（如果不存在则创建）
           git checkout gh-pages 2>/dev/null || git checkout -b gh-pages
+          
           # 从 main 分支拉取更新
           git pull origin main --rebase
+          
           # CNAME 处理 - 为 gh-pages 分支创建空 CNAME 文件而非删除
           if [ -f CNAME ]; then
             echo "清空 CNAME 文件内容而不删除它"
@@ -139,8 +156,10 @@ jobs:
             echo "创建空 CNAME 文件"
             touch CNAME
           fi
+          
           # 添加更改
           git add -A
+          
           # 提交并推送至 gh-pages 分支
           git commit -m "Sync latest release ${{ env.RELEASE_TAG }}" || echo "No changes to commit"
           git push origin gh-pages --force
