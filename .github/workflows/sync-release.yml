@@ -1,4 +1,4 @@
-name: Sync Latest Release   # 同步最新发布
+name: Sync Latest Release
 
 on:
   schedule:
@@ -10,15 +10,15 @@ on:
 
 jobs:
   sync:
-    runs-on: ubuntu-latest    # 在最新的 Ubuntu 虚拟机环境中运行
-    env:                      # 定义环境变量
+    runs-on: ubuntu-latest
+    env:
       NEED_UPDATE: 
       RELEASE_TAG: 
       DOWNLOAD_URL:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3        # 检出当前仓库代码
+        uses: actions/checkout@v4
         
       - name: Get latest release info
         id: release
@@ -85,7 +85,7 @@ jobs:
       
       - name: Create new release
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: "${{ env.RELEASE_TAG }}"
           name: "${{ env.RELEASE_TAG }}"
@@ -123,6 +123,7 @@ jobs:
           # 更新 README.md 中的版本信息
           sed -i "s|<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|" README.md
           sed -i "s|\[<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->\](https://github.com/Zephyruso/zashboard/releases)|[<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->](https://github.com/Zephyruso/zashboard/releases)|" README.md
+
       - name: Prepare and push to main
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
