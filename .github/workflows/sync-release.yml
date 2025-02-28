@@ -12,29 +12,51 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     env:
-      NEED_UPDATE: 
-      RELEASE_TAG: 
-      DOWNLOAD_URL:
-    
+      NEED_UPDATE: "false"
+      RELEASE_TAG: ""
+      DOWNLOAD_URL: ""
+      
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整历史以便正确处理分支
         
       - name: Get latest release info
         id: release
         run: |
           # 获取最新发布信息
           RELEASE_INFO=$(curl -s https://api.github.com/repos/Zephyruso/zashboard/releases/latest)
-          echo "RELEASE_TAG=$(echo $RELEASE_INFO | jq -r .tag_name)" >> $GITHUB_ENV
-          echo "DOWNLOAD_URL=$(echo $RELEASE_INFO | jq -r '.assets[] | select(.name=="dist.zip") | .browser_download_url')" >> $GITHUB_ENV
+          TAG=$(echo $RELEASE_INFO | jq -r .tag_name)
+          DL_URL=$(echo $RELEASE_INFO | jq -r '.assets[] | select(.name=="dist.zip") | .browser_download_url')
+          
+          # 检查是否成功获取信息
+          if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+            echo "::error::无法获取最新版本标签"
+            exit 1
+          fi
+          
+          if [ -z "$DL_URL" ] || [ "$DL_URL" = "null" ]; then
+            echo "::error::无法获取下载链接"
+            exit 1
+          fi
+          
+          echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
+          echo "DOWNLOAD_URL=$DL_URL" >> $GITHUB_ENV
+          echo "获取到最新版本: $TAG"
           
       - name: Check last processed version
         id: check_version
         run: |
           # 检查上一次处理的版本号
-          # 提取纯版本号（移除URL和其他字符）
-          LAST_VERSION=$(grep -o '<!-- RELEASE_TAG -->[^<]*' README.md | sed 's/<!-- RELEASE_TAG -->//g')
-          echo "提取到的版本号: $LAST_VERSION"
+          if grep -q "<!-- RELEASE_TAG -->" README.md; then
+            LAST_VERSION=$(grep -o '<!-- RELEASE_TAG -->[^<]*' README.md | sed 's/<!-- RELEASE_TAG -->//g')
+            echo "提取到的版本号: $LAST_VERSION"
+          else
+            LAST_VERSION="未找到版本标记"
+            echo "README.md 中未找到版本标记，将视为需要更新"
+          fi
+          
           echo "LAST_VERSION=$LAST_VERSION" >> $GITHUB_ENV
           
           # 设置更新标志（使用纯版本号比较）
@@ -49,35 +71,47 @@ jobs:
       - name: Download and process release
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
+          echo "开始下载和处理发布包..."
           # 下载最新发布包
-          curl -L "${{ env.DOWNLOAD_URL }}" -o original_dist.zip
+          curl -L "${{ env.DOWNLOAD_URL }}" -o original_dist.zip || { echo "::error::下载失败"; exit 1; }
           
           # 创建临时处理目录
           mkdir -p temp_extract
           mkdir -p processed_dist
           
           # 解压原始dist.zip
-          unzip original_dist.zip -d temp_extract
+          unzip -q original_dist.zip -d temp_extract || { echo "::error::解压失败"; exit 1; }
+          
+          # 检查解压后的目录结构
+          if [ -d "temp_extract/dist" ]; then
+            SOURCE_DIR="temp_extract/dist"
+          else
+            SOURCE_DIR="temp_extract"
+          fi
           
           # 检查并删除CNAME文件（如果存在）
-          if [ -f temp_extract/dist/CNAME ]; then
+          if [ -f "$SOURCE_DIR/CNAME" ]; then
             echo "移除CNAME文件"
-            rm temp_extract/dist/CNAME
+            rm "$SOURCE_DIR/CNAME"
           else
             echo "CNAME文件不存在，无需删除"
           fi
           
           # 复制处理后的文件到processed_dist目录
-          cp -r temp_extract/dist/* processed_dist/
+          cp -r "$SOURCE_DIR/"* processed_dist/
           
           # 重新打包为新的zip文件
           cd processed_dist
-          zip -r ../zashboard.zip ./*
+          zip -r ../zashboard.zip ./* || { echo "::error::打包失败"; exit 1; }
           cd ..
           
           # 确保zip文件存在
-          ls -la zashboard.zip
-          echo "zashboard.zip 文件大小: $(du -h zashboard.zip | cut -f1)"
+          if [ -f "zashboard.zip" ]; then
+            echo "zashboard.zip 文件大小: $(du -h zashboard.zip | cut -f1)"
+          else
+            echo "::error::打包后的文件不存在"
+            exit 1
+          fi
       
       - name: Create new release
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
@@ -89,6 +123,8 @@ jobs:
             此版本基于原始 ${{ env.RELEASE_TAG }} 发布，已移除CNAME文件。
             
             原始发布：https://github.com/Zephyruso/zashboard/releases/tag/${{ env.RELEASE_TAG }}
+            
+            更新时间：${{ github.event.repository.updated_at }}
           files: zashboard.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -96,17 +132,23 @@ jobs:
       - name: Clean existing files
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
+          echo "清理现有文件..."
           # 创建需要保留的文件列表
-          echo ".github/" > preserve.txt
-          echo "README.md" >> preserve.txt
+          cat > preserve.txt << EOF
+          .git/
+          .github/
+          README.md
+          preserve.txt
+          zashboard.zip
+          EOF
           
           # 删除除保留文件以外的文件和目录
-          find . -maxdepth 1 -type f -not -name "README.md" -not -name ".github" -not -name "preserve.txt" -not -name "original_dist.zip" -not -name "zashboard.zip" -delete
-          find . -maxdepth 1 -type d -not -name ".*" -not -name "temp_extract" -not -name "processed_dist" -not -name ".github" -exec rm -rf {} +
+          find . -maxdepth 1 | grep -v -f preserve.txt | xargs rm -rf
           
       - name: Move files to root
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
+          echo "移动文件到根目录..."
           # 将处理后的文件移动到仓库根目录
           cp -r processed_dist/* .
           
@@ -116,46 +158,44 @@ jobs:
       - name: Update version in README
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
-          # 更新 README.md 中的版本信息
-          sed -i "s|<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|" README.md
-          sed -i "s|\[<!-- RELEASE_TAG -->v[0-9.]*<!-- /RELEASE_TAG -->\](https://github.com/Zephyruso/zashboard/releases)|[<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->](https://github.com/Zephyruso/zashboard/releases)|" README.md
+          echo "更新README中的版本信息..."
+          # 检查README.md是否包含版本标记
+          if grep -q "<!-- RELEASE_TAG -->" README.md; then
+            # 更新已存在的版本标记
+            sed -i "s|<!-- RELEASE_TAG -->[^<]*<!-- /RELEASE_TAG -->|<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->|g" README.md
+            sed -i "s|\[<!-- RELEASE_TAG -->[^<]*<!-- /RELEASE_TAG -->\](https://github.com/Zephyruso/zashboard/releases)|[<!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->](https://github.com/Zephyruso/zashboard/releases)|g" README.md
+          else
+            # 如果不存在版本标记，则添加版本信息到README.md顶部
+            echo -e "# Zashboard <!-- RELEASE_TAG -->${{ env.RELEASE_TAG }}<!-- /RELEASE_TAG -->\n\n$(cat README.md)" > README.md
+          fi
           
       - name: Prepare and push to main
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
+          echo "准备提交到main分支..."
           # 配置 Git
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
           # 删除 zashboard.zip 和 preserve.txt
-          rm -f zashboard.zip
-          rm -f preserve.txt
+          rm -f zashboard.zip preserve.txt
           
           # 添加所有更改
           git add -A
           
           # 提交并推送至 main 分支
-          git checkout main
           git commit -m "Sync latest release ${{ env.RELEASE_TAG }}" || echo "No changes to commit"
-          git push origin main
+          git push origin HEAD:main
           
       - name: Prepare and push to gh-pages
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
-          # 检出 gh-pages 分支（如果不存在则创建）
-          git checkout gh-pages 2>/dev/null || git checkout -b gh-pages
-          
-          # 从 main 分支拉取更新
-          git pull origin main --rebase
+          echo "准备提交到gh-pages分支..."
+          # 确保我们在正确的分支上
+          git checkout -B gh-pages
           
           # CNAME 处理 - 为 gh-pages 分支创建空 CNAME 文件而非删除
-          if [ -f CNAME ]; then
-            echo "清空 CNAME 文件内容而不删除它"
-            echo "" > CNAME
-          else
-            echo "创建空 CNAME 文件"
-            touch CNAME
-          fi
+          touch CNAME
           
           # 添加更改
           git add -A
