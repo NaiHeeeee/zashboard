@@ -193,15 +193,18 @@ jobs:
         if: env.NEED_UPDATE == 'true'   # 仅在需要更新时执行
         run: |
           echo "准备提交到gh-pages分支..."
-          # 确保我们在正确的分支上
+          # 切换到 gh-pages 分支
           git checkout -B gh-pages
-          
+
+          # 删除 .github 文件夹
+          rm -rf .github
+
           # CNAME 处理 - 为 gh-pages 分支创建空 CNAME 文件而非删除
           touch CNAME
-          
+
           # 添加更改
           git add -A
-          
+
           # 提交并推送至 gh-pages 分支
           git commit -m "Sync latest release ${{ env.RELEASE_TAG }}" || echo "No changes to commit"
           git push origin gh-pages --force
