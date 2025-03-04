@@ -32,9 +32,8 @@ jobs:
       - name: Check last processed version
         id: check_version
         run: |
-          echo "最新版本号: $RELEASE_TAG"
-          
           # 检查上一次处理的版本号
+          echo "最新版本号: $RELEASE_TAG"
           if grep -q "<!-- RELEASE_TAG -->" README.md; then
             LAST_VERSION=$(grep -o '<!-- RELEASE_TAG -->[^<]*' README.md | sed 's/<!-- RELEASE_TAG -->//g')
             echo "提取到的版本号: $LAST_VERSION"
