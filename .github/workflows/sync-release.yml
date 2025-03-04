@@ -28,12 +28,12 @@ jobs:
           RELEASE_INFO=$(curl -s https://api.github.com/repos/Zephyruso/zashboard/releases/latest)
           echo "RELEASE_TAG=$(echo $RELEASE_INFO | jq -r .tag_name)" >> $GITHUB_ENV
           echo "DOWNLOAD_URL=$(echo $RELEASE_INFO | jq -r '.assets[] | select(.name=="dist.zip") | .browser_download_url')" >> $GITHUB_ENV
-          echo "最新版本: $RELEASE_TAG"
-          echo "下载地址: $env.DOWNLOAD_URL"
 
       - name: Check last processed version
         id: check_version
         run: |
+          echo "最新版本号: $RELEASE_TAG"
+          
           # 检查上一次处理的版本号
           if grep -q "<!-- RELEASE_TAG -->" README.md; then
             LAST_VERSION=$(grep -o '<!-- RELEASE_TAG -->[^<]*' README.md | sed 's/<!-- RELEASE_TAG -->//g')
