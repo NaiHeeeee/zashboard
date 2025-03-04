@@ -25,25 +25,38 @@ jobs:
       - name: Get latest release info
         id: release
         run: |
-          # 获取最新发布信息
-          RELEASE_INFO=$(curl -s https://api.github.com/repos/Zephyruso/zashboard/releases/latest)
-          TAG=$(echo $RELEASE_INFO | jq -r .tag_name)
-          DL_URL=$(echo $RELEASE_INFO | jq -r '.assets[] | select(.name=="dist.zip") | .browser_download_url')
+          # 设置最大重试次数
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          SUCCESS=false
           
-          # 检查是否成功获取信息
-          if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
-            echo "::error::无法获取最新版本标签"
-            exit 1
-          fi
-          
-          if [ -z "$DL_URL" ] || [ "$DL_URL" = "null" ]; then
-            echo "::error::无法获取下载链接"
-            exit 1
-          fi
-          
-          echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
-          echo "DOWNLOAD_URL=$DL_URL" >> $GITHUB_ENV
-          echo "获取到最新版本: $TAG"
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SUCCESS" = "false" ]; do
+            # 获取最新发布信息
+            echo "尝试获取最新版本信息 (尝试 $((RETRY_COUNT+1))/$MAX_RETRIES)..."
+            RELEASE_INFO=$(curl -s https://api.github.com/repos/Zephyruso/zashboard/releases/latest)
+            TAG=$(echo $RELEASE_INFO | jq -r .tag_name)
+            DL_URL=$(echo $RELEASE_INFO | jq -r '.assets[] | select(.name=="dist.zip") | .browser_download_url')
+            
+            # 检查是否成功获取信息
+            if [ -z "$TAG" ] || [ "$TAG" = "null" ] || [ -z "$DL_URL" ] || [ "$DL_URL" = "null" ]; then
+              echo "获取信息失败，准备重试..."
+              RETRY_COUNT=$((RETRY_COUNT+1))
+              
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "等待60秒后重试..."
+                sleep 60
+              else
+                echo "::error::在 $MAX_RETRIES 次尝试后无法获取最新版本信息"
+                exit 1
+              fi
+            else
+              # 获取成功
+              SUCCESS=true
+              echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
+              echo "DOWNLOAD_URL=$DL_URL" >> $GITHUB_ENV
+              echo "获取到最新版本: $TAG"
+            fi
+          done
           
       - name: Check last processed version
         id: check_version
